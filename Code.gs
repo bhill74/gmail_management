@@ -1,24 +1,4 @@
 //************************************************************
-//%NAME: MyLogger
-//%DESCRIPTION:
-// Collects all the messages output to the log and just in case
-// they need to be sent to the user.
-//************************************************************
-function MyLogger(title) {
-  this.log = "";
-  this.title = title;
-  
-  this.add = function(msg) {
-    Logger.log(msg);
-    this.log += msg + "\n";
-  }
-  
-  this.send = function() {
-    GmailApp.sendEmail(Session.getActiveUser().getEmail(), this.title, this.log);
-  }
-};
-
-//************************************************************
 //%NAME: deleteOlder()
 //%DESCRIPTION:
 // Find all messages/threads within the given label and if
@@ -32,11 +12,22 @@ function MyLogger(title) {
 // The logged information.
 //************************************************************
 function deleteOlderThan(maxDate, label, logger) {    
-  var threads = label.getThreads();
-  var removed = 0;
-  var remain = 0;
   logger.add("------ " + label.getName() + "  [earlier than " + maxDate + "] ------");
   
+  var start = 0;
+  var delta = 300;
+  var threads = [];
+  while (true) {
+    var t = label.getThreads(start, delta);    
+    if (t.length == 0) {
+      break;
+    }
+    threads = threads.concat(t);
+    start += delta;
+  }
+  
+  var removed = 0;
+  var remain = 0;
   for(var i = 0; i < threads.length; i++) {
     if (threads[i].isInTrash() == true) {
       continue;
@@ -48,13 +39,14 @@ function deleteOlderThan(maxDate, label, logger) {
     }
     
     if (threads[i].getLastMessageDate() < maxDate) {
-       logger.add(" * Moved: " + threads[i].getFirstMessageSubject() + " / " + threads[i].getLastMessageDate());
-       threads[i].moveToTrash();
-       removed++;
+      logger.add(" * Moved: " + threads[i].getFirstMessageSubject() + " / " + threads[i].getLastMessageDate());
+      threads[i].moveToTrash();
+      removed++;
     } else {
-       remain++;
+      remain++;
     }
   }
+  
   logger.add(" Moved " + removed + " threads (" + remain + " threads untouched)");
 }
 
@@ -118,12 +110,12 @@ function cleanup() {
   var labels = GmailApp.getUserLabels();  
   for(var i = 0; i < labels.length; i++) {
     var name = labels[i].getName(); 
-    var match = name.match(/^(.*\/)?Delete(\d+)((Second|Minute|Hour|Day|Week|Month|Year)s*)(\-reply)?$/);
+    var match = name.match(/^(.*\/)?Delete(\d+)((Second|Minute|Hour|Day|Week|Month|Year)s?)(Email)?$/);
     if (match == null) {
       continue;
     }           
 
-    logger = new MyLogger("Parsing of '" + name + "'");
+    logger = new MyLogger.create("Parsing of '" + name + "'");
     
     if (match[2] == 1 && match[4] != match[3]) {
       logger.add("** " + name + " has the wrong pluralization of " + match[3]);
